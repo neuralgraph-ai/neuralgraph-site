@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeuralGraph — A Context Engine for AI</title>
+    <meta name="description" content="Not quite a neural network. More than a graph. NeuralGraph is a context engine that stores structured knowledge as graphs and retrieves the right context at the right time.">
+    <meta property="og:title" content="NeuralGraph">
+    <meta property="og:description" content="Not quite a neural network. More than a graph. A context engine for AI.">
+    <meta property="og:type" content="website">
+    <link rel="icon" type="image/png" href="assets/logo-dark.png">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --blue: #4aa3df;
+            --purple: #8b5cf6;
+            --pink: #e84393;
+            --bg-dark: #0f0f1a;
+            --bg-card: rgba(255, 255, 255, 0.04);
+            --text-primary: #e8e8f0;
+            --text-secondary: #8888a0;
+            --border: rgba(255, 255, 255, 0.06);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Subtle animated gradient background */
+        .bg-glow {
+            position: fixed;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle at 30% 40%, rgba(74, 163, 223, 0.06) 0%, transparent 50%),
+                        radial-gradient(circle at 70% 60%, rgba(232, 67, 147, 0.06) 0%, transparent 50%);
+            animation: glowMove 20s ease-in-out infinite;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        @keyframes glowMove {
+            0%, 100% { transform: translate(0, 0); }
+            50% { transform: translate(-3%, 2%); }
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* Nav */
+        nav {
+            padding: 24px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .nav-badge {
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            padding: 6px 14px;
+            border: 1px solid var(--border);
+            border-radius: 100px;
+        }
+
+        .github-link {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 14px;
+            transition: color 0.2s;
+        }
+
+        .github-link:hover {
+            color: var(--text-primary);
+        }
+
+        .github-link svg {
+            width: 20px;
+            height: 20px;
+            vertical-align: middle;
+        }
+
+        /* Hero */
+        .hero {
+            text-align: center;
+            padding: 80px 0 60px;
+        }
+
+        .logo {
+            width: 180px;
+            height: auto;
+            margin-bottom: 40px;
+            filter: drop-shadow(0 0 60px rgba(139, 92, 246, 0.15));
+        }
+
+        .tagline {
+            font-size: clamp(14px, 2.5vw, 16px);
+            font-weight: 500;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            background: linear-gradient(135deg, var(--blue), var(--purple), var(--pink));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 24px;
+        }
+
+        h1 {
+            font-size: clamp(36px, 6vw, 64px);
+            font-weight: 700;
+            line-height: 1.1;
+            letter-spacing: -0.02em;
+            margin-bottom: 20px;
+        }
+
+        h1 .gradient {
+            background: linear-gradient(135deg, var(--blue), var(--pink));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            font-size: clamp(16px, 2.5vw, 20px);
+            color: var(--text-secondary);
+            line-height: 1.6;
+            max-width: 600px;
+            margin: 0 auto 48px;
+        }
+
+        /* Coming Soon Badge */
+        .coming-soon {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 28px;
+            border-radius: 100px;
+            background: linear-gradient(135deg, rgba(74, 163, 223, 0.12), rgba(232, 67, 147, 0.12));
+            border: 1px solid rgba(139, 92, 246, 0.2);
+            font-size: 15px;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 80px;
+        }
+
+        .pulse {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--purple);
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.4); }
+            50% { opacity: 0.7; box-shadow: 0 0 0 8px rgba(139, 92, 246, 0); }
+        }
+
+        /* Features */
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            padding-bottom: 80px;
+        }
+
+        .feature {
+            padding: 32px;
+            border-radius: 16px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            transition: border-color 0.3s, background 0.3s;
+        }
+
+        .feature:hover {
+            border-color: rgba(139, 92, 246, 0.15);
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        .feature-icon {
+            font-size: 28px;
+            margin-bottom: 16px;
+            display: block;
+            width: 48px;
+            height: 48px;
+            line-height: 48px;
+            text-align: center;
+            border-radius: 12px;
+            background: rgba(139, 92, 246, 0.1);
+        }
+
+        .feature h3 {
+            font-size: 17px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .feature p {
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        /* Code block */
+        .code-section {
+            padding-bottom: 80px;
+        }
+
+        .code-section h2 {
+            font-size: 14px;
+            font-weight: 500;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .code-block {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 32px;
+            overflow-x: auto;
+            font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+            font-size: 14px;
+            line-height: 1.7;
+        }
+
+        .code-block .comment { color: #5c6370; }
+        .code-block .keyword { color: var(--purple); }
+        .code-block .string { color: #98c379; }
+        .code-block .func { color: var(--blue); }
+        .code-block .var { color: var(--text-primary); }
+        .code-block .prop { color: var(--pink); }
+
+        /* Divider */
+        .divider {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--border), transparent);
+            margin-bottom: 80px;
+        }
+
+        /* Bottom section */
+        .bottom {
+            text-align: center;
+            padding-bottom: 60px;
+        }
+
+        .bottom p {
+            color: var(--text-secondary);
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .bottom a {
+            color: var(--blue);
+            text-decoration: none;
+        }
+
+        .bottom a:hover {
+            text-decoration: underline;
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 24px 0;
+            border-top: 1px solid var(--border);
+            color: var(--text-secondary);
+            font-size: 13px;
+        }
+
+        /* Mobile */
+        @media (max-width: 640px) {
+            .hero { padding: 48px 0 40px; }
+            .logo { width: 140px; }
+            .features { grid-template-columns: 1fr; }
+            .code-block { padding: 20px; font-size: 12px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-glow"></div>
+
+    <div class="container">
+        <nav>
+            <span class="nav-badge">Coming Soon</span>
+            <a href="https://github.com/neuralgraph-ai" class="github-link" aria-label="GitHub">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+            </a>
+        </nav>
+
+        <section class="hero">
+            <img src="assets/logo-dark.png" alt="NeuralGraph" class="logo">
+
+            <p class="tagline">Not quite a neural network. More than a graph.</p>
+
+            <h1>A <span class="gradient">Context Engine</span><br>for AI</h1>
+
+            <p class="subtitle">
+                Store structured knowledge as graphs. Retrieve the right context at the right time.
+                Domain-agnostic. Configurable. Production-ready.
+            </p>
+
+            <div class="coming-soon">
+                <span class="pulse"></span>
+                Coming Soon
+            </div>
+        </section>
+
+        <section class="features">
+            <div class="feature">
+                <span class="feature-icon">&#x25C8;</span>
+                <h3>Context Spaces</h3>
+                <p>Isolated knowledge graphs for any domain. Memories, knowledge bases, profiles — each space has its own schema, ingestion rules, and retrieval config.</p>
+            </div>
+            <div class="feature">
+                <span class="feature-icon">&#x2B21;</span>
+                <h3>Graph Intelligence</h3>
+                <p>Community detection, link prediction, centrality scoring, and personalized PageRank. The graph does heavy lifting without LLM calls.</p>
+            </div>
+            <div class="feature">
+                <span class="feature-icon">&#x26A1;</span>
+                <h3>Fast Hydration</h3>
+                <p>Six concurrent retrieval channels. Entity matching, vector search, graph expansion — all in under 200ms. No LLM in the hot path.</p>
+            </div>
+            <div class="feature">
+                <span class="feature-icon">&#x2699;</span>
+                <h3>Fully Configurable</h3>
+                <p>Define new space types with YAML. Custom schemas, extraction prompts, scoring weights, lifecycle rules. No code changes needed.</p>
+            </div>
+            <div class="feature">
+                <span class="feature-icon">&#x1F4E6;</span>
+                <h3>One Binary</h3>
+                <p>Single Go binary. Docker Compose for the full stack. Production-grade from day one. Scales to hundreds of thousands of users.</p>
+            </div>
+            <div class="feature">
+                <span class="feature-icon">&#x1F40D;</span>
+                <h3>Python SDK</h3>
+                <p><code style="color: var(--purple); background: rgba(139,92,246,0.1); padding: 2px 6px; border-radius: 4px; font-size: 13px;">pip install neuralgraph</code> — five lines to persistent context. Typed models, async support, clean API.</p>
+            </div>
+        </section>
+
+        <div class="divider"></div>
+
+        <section class="code-section">
+            <h2>How it works</h2>
+            <div class="code-block">
+<span class="keyword">from</span> <span class="var">neuralgraph</span> <span class="keyword">import</span> <span class="var">NeuralGraph</span>
+
+<span class="var">ng</span> = <span class="func">NeuralGraph</span>(<span class="prop">url</span>=<span class="string">"http://localhost:8080"</span>)
+
+<span class="comment"># Ingest a conversation</span>
+<span class="var">ng</span>.<span class="func">ingest</span>(
+    <span class="prop">space_id</span>=<span class="string">"memories"</span>,
+    <span class="prop">user_id</span>=<span class="string">"david"</span>,
+    <span class="prop">messages</span>=[
+        {<span class="string">"role"</span>: <span class="string">"user"</span>, <span class="string">"content"</span>: <span class="string">"My dog Max has been limping"</span>},
+    ],
+)
+
+<span class="comment"># Retrieve relevant context</span>
+<span class="var">ctx</span> = <span class="var">ng</span>.<span class="func">hydrate</span>(
+    <span class="prop">user_id</span>=<span class="string">"david"</span>,
+    <span class="prop">messages</span>=[{<span class="string">"role"</span>: <span class="string">"user"</span>, <span class="string">"content"</span>: <span class="string">"Should I take him to the vet?"</span>}],
+)
+
+<span class="comment"># ctx.nodes → [Node("pets.max", score=0.94)]</span>
+<span class="comment"># ctx.system_prompt → full prompt with context injected</span>
+            </div>
+        </section>
+
+        <div class="divider"></div>
+
+        <section class="bottom">
+            <p>Built with Go. Powered by PostgreSQL, Neo4j, Qdrant, and Redis.</p>
+        </section>
+
+        <footer>
+            <p>NeuralGraph &copy; 2026</p>
+        </footer>
+    </div>
+</body>
+</html>
