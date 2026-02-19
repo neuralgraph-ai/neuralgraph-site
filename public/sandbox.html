@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>NeuralGraph Sandbox</title>
+
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#0f0f1a">
+
+    <!-- iOS PWA -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="NeuralGraph">
+    <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+
+    <!-- Icons -->
+    <link rel="icon" type="image/png" href="assets/logo-dark.png">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+        :root {
+            --blue: #4aa3df;
+            --purple: #8b5cf6;
+            --pink: #e84393;
+            --bg-dark: #0f0f1a;
+            --bg-card: rgba(255, 255, 255, 0.04);
+            --bg-input: rgba(255, 255, 255, 0.06);
+            --text-primary: #e8e8f0;
+            --text-secondary: #8888a0;
+            --border: rgba(255, 255, 255, 0.06);
+            --border-focus: rgba(139, 92, 246, 0.4);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-primary);
+            height: 100vh;
+            height: 100dvh;
+            overflow: hidden;
+            -webkit-user-select: none;
+            user-select: none;
+            /* iOS safe areas */
+            padding-top: env(safe-area-inset-top);
+            padding-bottom: env(safe-area-inset-bottom);
+            padding-left: env(safe-area-inset-left);
+            padding-right: env(safe-area-inset-right);
+        }
+
+        /* Allow text selection in messages and inputs */
+        .msg, input, textarea, .debug-pre { -webkit-user-select: text; user-select: text; }
+
+        /* ── Login Screen ── */
+        .login-screen {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+
+        .login-card {
+            width: 360px;
+            padding: 40px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            text-align: center;
+        }
+
+        .login-card img {
+            width: 120px;
+            margin-bottom: 24px;
+            filter: drop-shadow(0 0 40px rgba(139, 92, 246, 0.15));
+        }
+
+        .login-card h2 {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .login-card .subtitle {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-bottom: 28px;
+        }
+
+        .login-card input {
+            width: 100%;
+            padding: 12px 16px;
+            margin-bottom: 12px;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .login-card input:focus {
+            border-color: var(--border-focus);
+        }
+
+        .login-card button {
+            width: 100%;
+            padding: 12px;
+            margin-top: 4px;
+            background: linear-gradient(135deg, var(--purple), var(--pink));
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .login-card button:hover { opacity: 0.9; }
+        .login-card button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .login-error {
+            color: #ef4444;
+            font-size: 13px;
+            margin-top: 12px;
+            min-height: 18px;
+        }
+
+        /* ── Chat Layout ── */
+        .chat-app {
+            display: none;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        .top-nav {
+            display: flex;
+            align-items: center;
+            padding: 12px 20px;
+            border-bottom: 1px solid var(--border);
+            gap: 16px;
+            flex-shrink: 0;
+        }
+
+        .top-nav img {
+            width: 32px;
+            height: 32px;
+            cursor: pointer;
+        }
+
+        .top-nav .title {
+            font-size: 15px;
+            font-weight: 600;
+            flex: 1;
+        }
+
+        .space-select {
+            padding: 6px 12px;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 13px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .sign-out-btn {
+            padding: 6px 14px;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-secondary);
+            font-size: 13px;
+            cursor: pointer;
+            transition: color 0.2s, border-color 0.2s;
+        }
+
+        .sign-out-btn:hover {
+            color: var(--text-primary);
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        /* ── Main panels ── */
+        .main-panels {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .chat-panel {
+            flex: 0 0 65%;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid var(--border);
+        }
+
+        .debug-panel {
+            flex: 0 0 35%;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            padding: 16px;
+            font-size: 13px;
+        }
+
+        /* ── Messages ── */
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .msg {
+            max-width: 75%;
+            padding: 12px 16px;
+            border-radius: 12px;
+            line-height: 1.5;
+            font-size: 14px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .msg.user {
+            align-self: flex-end;
+            background: linear-gradient(135deg, var(--purple), rgba(139, 92, 246, 0.7));
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        .msg.assistant {
+            align-self: flex-start;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-bottom-left-radius: 4px;
+        }
+
+        .msg.system-msg {
+            align-self: center;
+            color: var(--text-secondary);
+            font-size: 12px;
+            background: transparent;
+            padding: 4px;
+        }
+
+        /* Typing indicator */
+        .typing {
+            align-self: flex-start;
+            display: none;
+            gap: 4px;
+            padding: 12px 16px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            border-bottom-left-radius: 4px;
+        }
+
+        .typing span {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--text-secondary);
+            animation: bounce 1.4s infinite;
+        }
+
+        .typing span:nth-child(2) { animation-delay: 0.2s; }
+        .typing span:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes bounce {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-6px); }
+        }
+
+        /* ── Input bar ── */
+        .input-bar {
+            padding: 16px 20px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+
+        .input-bar input {
+            flex: 1;
+            padding: 12px 16px;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .input-bar input:focus {
+            border-color: var(--border-focus);
+        }
+
+        .input-bar button {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, var(--purple), var(--pink));
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .input-bar button:hover { opacity: 0.9; }
+        .input-bar button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* ── Debug panel ── */
+        .debug-section {
+            margin-bottom: 16px;
+        }
+
+        .debug-section summary {
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-secondary);
+            padding: 8px 0;
+            user-select: none;
+        }
+
+        .debug-section summary:hover {
+            color: var(--text-primary);
+        }
+
+        .debug-content {
+            padding: 8px 0;
+        }
+
+        .node-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 8px;
+            border-radius: 6px;
+            margin-bottom: 4px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+        }
+
+        .node-name {
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .node-score {
+            font-family: 'SF Mono', 'Consolas', monospace;
+            color: var(--purple);
+            font-size: 12px;
+        }
+
+        .node-source {
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        .debug-pre {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+            font-family: 'SF Mono', 'Consolas', monospace;
+            font-size: 11px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            word-break: break-word;
+            max-height: 400px;
+            overflow-y: auto;
+            color: var(--text-secondary);
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 100px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .status-badge.pending {
+            background: rgba(234, 179, 8, 0.15);
+            color: #eab308;
+        }
+
+        .status-badge.running {
+            background: rgba(74, 163, 223, 0.15);
+            color: var(--blue);
+        }
+
+        .status-badge.completed {
+            background: rgba(34, 197, 94, 0.15);
+            color: #22c55e;
+        }
+
+        .status-badge.error {
+            background: rgba(239, 68, 68, 0.15);
+            color: #ef4444;
+        }
+
+        .debug-empty {
+            color: var(--text-secondary);
+            font-style: italic;
+            font-size: 12px;
+            padding: 8px 0;
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 768px) {
+            .main-panels { flex-direction: column; }
+            .chat-panel { flex: 1; border-right: none; border-bottom: 1px solid var(--border); }
+            .debug-panel { flex: 0 0 200px; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Login Screen -->
+<div id="loginScreen" class="login-screen">
+    <div class="login-card">
+        <img src="assets/logo-dark.png" alt="NeuralGraph">
+        <h2>Sandbox</h2>
+        <p class="subtitle">Invite-only access. Sign in with your credentials.</p>
+        <form id="loginForm">
+            <input type="email" id="email" placeholder="Email" required autocomplete="email">
+            <input type="password" id="password" placeholder="Password" required autocomplete="current-password">
+            <button type="submit" id="loginBtn">Sign In</button>
+        </form>
+        <p class="login-error" id="loginError"></p>
+    </div>
+</div>
+
+<!-- Chat App -->
+<div id="chatApp" class="chat-app">
+    <div class="top-nav">
+        <a href="/"><img src="assets/logo-dark.png" alt="NeuralGraph"></a>
+        <span class="title">Sandbox</span>
+        <select id="spaceSelect" class="space-select"></select>
+        <select id="providerSelect" class="space-select">
+            <option value="anthropic">Claude</option>
+            <option value="openai">GPT-4o</option>
+            <option value="gemini">Gemini</option>
+            <option value="azure_openai">Azure OpenAI</option>
+        </select>
+        <button id="signOutBtn" class="sign-out-btn">Sign Out</button>
+    </div>
+
+    <div class="main-panels">
+        <div class="chat-panel">
+            <div id="messages" class="messages">
+                <div class="msg system-msg">Send a message to start a conversation.</div>
+            </div>
+            <div id="typing" class="typing">
+                <span></span><span></span><span></span>
+            </div>
+            <div class="input-bar">
+                <input type="text" id="chatInput" placeholder="Type a message..." autocomplete="off">
+                <button id="sendBtn">Send</button>
+            </div>
+        </div>
+
+        <div class="debug-panel">
+            <details class="debug-section" open>
+                <summary>Scored Nodes</summary>
+                <div id="debugNodes" class="debug-content">
+                    <p class="debug-empty">No hydration data yet.</p>
+                </div>
+            </details>
+            <details class="debug-section">
+                <summary>System Prompt</summary>
+                <div id="debugPrompt" class="debug-content">
+                    <p class="debug-empty">No system prompt yet.</p>
+                </div>
+            </details>
+            <details class="debug-section">
+                <summary>Job Status</summary>
+                <div id="debugJob" class="debug-content">
+                    <p class="debug-empty">No jobs yet.</p>
+                </div>
+            </details>
+        </div>
+    </div>
+</div>
+
+<!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+
+<script>
+    // Firebase config — replace with your project's config
+    firebase.initializeApp({
+        apiKey: "YOUR_FIREBASE_API_KEY",
+        authDomain: "neuralgraph-app.firebaseapp.com",
+        projectId: "neuralgraph-app",
+    });
+
+    const auth = firebase.auth();
+
+    // ── State ──
+    let idToken = null;
+    let userId = null;
+    let spaceIds = [];
+    let conversationHistory = [];
+
+    // ── DOM ──
+    const loginScreen = document.getElementById("loginScreen");
+    const chatApp = document.getElementById("chatApp");
+    const loginForm = document.getElementById("loginForm");
+    const loginBtn = document.getElementById("loginBtn");
+    const loginError = document.getElementById("loginError");
+    const spaceSelect = document.getElementById("spaceSelect");
+    const providerSelect = document.getElementById("providerSelect");
+    const signOutBtn = document.getElementById("signOutBtn");
+    const messagesEl = document.getElementById("messages");
+    const typingEl = document.getElementById("typing");
+    const chatInput = document.getElementById("chatInput");
+    const sendBtn = document.getElementById("sendBtn");
+    const debugNodes = document.getElementById("debugNodes");
+    const debugPrompt = document.getElementById("debugPrompt");
+    const debugJob = document.getElementById("debugJob");
+
+    // ── Auth ──
+    loginForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        loginBtn.disabled = true;
+        loginError.textContent = "";
+
+        try {
+            const email = document.getElementById("email").value;
+            const password = document.getElementById("password").value;
+            await auth.signInWithEmailAndPassword(email, password);
+        } catch (err) {
+            loginError.textContent = err.message.replace("Firebase: ", "");
+            loginBtn.disabled = false;
+        }
+    });
+
+    signOutBtn.addEventListener("click", () => {
+        auth.signOut();
+    });
+
+    auth.onAuthStateChanged(async (user) => {
+        if (user) {
+            const tokenResult = await user.getIdTokenResult();
+            idToken = tokenResult.token;
+
+            const claims = tokenResult.claims;
+            userId = claims.ngUserId || user.uid;
+            spaceIds = claims.ngSpaceIds || [];
+
+            // Populate space selector by fetching each allowed space
+            spaceSelect.innerHTML = "";
+            for (const id of spaceIds) {
+                try {
+                    const space = await apiCall(`/v1/spaces/${id}`);
+                    const opt = document.createElement("option");
+                    opt.value = space.id;
+                    opt.textContent = space.name || space.id;
+                    spaceSelect.appendChild(opt);
+                } catch {
+                    const opt = document.createElement("option");
+                    opt.value = id;
+                    opt.textContent = id;
+                    spaceSelect.appendChild(opt);
+                }
+            }
+
+            // Reset conversation
+            conversationHistory = [];
+
+            loginScreen.style.display = "none";
+            chatApp.style.display = "flex";
+            chatInput.focus();
+        } else {
+            idToken = null;
+            userId = null;
+            spaceIds = [];
+            conversationHistory = [];
+
+            loginScreen.style.display = "flex";
+            chatApp.style.display = "none";
+        }
+    });
+
+    // Refresh token periodically
+    setInterval(async () => {
+        const user = auth.currentUser;
+        if (user) {
+            idToken = await user.getIdToken(true);
+        }
+    }, 10 * 60 * 1000);
+
+    // ── API helpers ──
+    async function apiCall(path, options = {}) {
+        const res = await fetch(`/api${path}`, {
+            ...options,
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${idToken}`,
+                ...options.headers,
+            },
+        });
+
+        if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            throw new Error(body.error || `API error ${res.status}`);
+        }
+
+        return res.json();
+    }
+
+    // ── Chat flow ──
+    chatInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+
+    sendBtn.addEventListener("click", sendMessage);
+
+    async function sendMessage() {
+        const text = chatInput.value.trim();
+        if (!text) return;
+
+        const spaceId = spaceSelect.value;
+        if (!spaceId) {
+            addMessage("system-msg", "No space selected.");
+            return;
+        }
+
+        chatInput.value = "";
+        sendBtn.disabled = true;
+        chatInput.disabled = true;
+
+        addMessage("user", text);
+        conversationHistory.push({ role: "user", content: text });
+        showTyping(true);
+
+        try {
+            // 1. Ingest
+            updateJobStatus("running", "Ingesting...");
+            const ingestResult = await apiCall(`/v1/spaces/${spaceId}/ingest`, {
+                method: "POST",
+                body: JSON.stringify({
+                    input_type: "conversation",
+                    messages: [{ role: "user", content: text }],
+                    metadata: { user_id: userId },
+                }),
+            });
+
+            // 2. Poll job
+            if (ingestResult.job_id) {
+                await pollJob(ingestResult.job_id);
+            }
+
+            // 3. Hydrate
+            updateJobStatus("running", "Hydrating...");
+            const hydrateResult = await apiCall("/v1/hydrate", {
+                method: "POST",
+                body: JSON.stringify({
+                    user_id: userId,
+                    messages: conversationHistory,
+                    space_ids: [spaceId],
+                }),
+            });
+
+            // Update debug panel
+            updateDebugNodes(hydrateResult.nodes || []);
+            updateDebugPrompt(hydrateResult.system_prompt || "");
+
+            // 4. LLM call
+            updateJobStatus("running", "Generating response...");
+            const chatResult = await apiCall("/chat", {
+                method: "POST",
+                body: JSON.stringify({
+                    system_prompt: hydrateResult.system_prompt || "",
+                    messages: conversationHistory,
+                    provider: providerSelect.value,
+                }),
+            });
+
+            const reply = chatResult.content || "";
+            conversationHistory.push({ role: "assistant", content: reply });
+            addMessage("assistant", reply);
+
+            updateJobStatus("completed", "Done");
+        } catch (err) {
+            addMessage("system-msg", `Error: ${err.message}`);
+            updateJobStatus("error", err.message);
+        } finally {
+            showTyping(false);
+            sendBtn.disabled = false;
+            chatInput.disabled = false;
+            chatInput.focus();
+        }
+    }
+
+    async function pollJob(jobId) {
+        const maxAttempts = 60;
+        for (let i = 0; i < maxAttempts; i++) {
+            const job = await apiCall(`/v1/jobs/${jobId}`);
+            updateJobStatus(
+                job.status === "completed" ? "completed" : "running",
+                `Job ${jobId}: ${job.status}`
+            );
+
+            if (job.status === "completed") return;
+            if (job.status === "failed") throw new Error(`Job failed: ${job.error || "unknown"}`);
+
+            await new Promise((r) => setTimeout(r, 2000));
+        }
+        throw new Error("Job timed out");
+    }
+
+    // ── UI helpers ──
+    function addMessage(type, text) {
+        const el = document.createElement("div");
+        el.className = `msg ${type}`;
+        el.textContent = text;
+        messagesEl.appendChild(el);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function showTyping(show) {
+        typingEl.style.display = show ? "flex" : "none";
+        if (show) messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function updateDebugNodes(nodes) {
+        if (!nodes.length) {
+            debugNodes.innerHTML = '<p class="debug-empty">No nodes returned.</p>';
+            return;
+        }
+
+        debugNodes.innerHTML = nodes
+            .sort((a, b) => (b.final_score || 0) - (a.final_score || 0))
+            .map(
+                (n) => `
+                <div class="node-row">
+                    <div>
+                        <span class="node-name">${escapeHtml(n.name || n.id)}</span>
+                        <span class="node-source">${escapeHtml(n.node_type || "")} ${escapeHtml(n.match_source || "")}</span>
+                    </div>
+                    <span class="node-score">${(n.final_score || 0).toFixed(3)}</span>
+                </div>`
+            )
+            .join("");
+    }
+
+    function updateDebugPrompt(prompt) {
+        if (!prompt) {
+            debugPrompt.innerHTML = '<p class="debug-empty">No system prompt.</p>';
+            return;
+        }
+        debugPrompt.innerHTML = `<pre class="debug-pre">${escapeHtml(prompt)}</pre>`;
+    }
+
+    function updateJobStatus(status, label) {
+        debugJob.innerHTML = `<span class="status-badge ${status}">${escapeHtml(label)}</span>`;
+    }
+
+    function escapeHtml(str) {
+        const el = document.createElement("span");
+        el.textContent = str;
+        return el.innerHTML;
+    }
+
+    // ── Service Worker ──
+    if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.register("/sw.js");
+    }
+
+    // ── iOS standalone: fix viewport height on keyboard open ──
+    if (window.navigator.standalone) {
+        const visualViewport = window.visualViewport;
+        if (visualViewport) {
+            visualViewport.addEventListener("resize", () => {
+                document.body.style.height = visualViewport.height + "px";
+            });
+        }
+    }
+</script>
+</body>
+</html>

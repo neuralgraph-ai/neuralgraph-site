@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>How NeuralGraph Works — Concepts</title>
+    <meta name="description" content="Learn how NeuralGraph stores knowledge as graphs, retrieves context with triggers, and composes multiple knowledge spaces at query time.">
+
+    <link rel="icon" type="image/png" href="assets/logo-dark.png">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --blue: #4aa3df;
+            --purple: #8b5cf6;
+            --pink: #e84393;
+            --green: #22c55e;
+            --orange: #f59e0b;
+            --bg-dark: #0f0f1a;
+            --bg-card: rgba(255, 255, 255, 0.04);
+            --bg-input: rgba(255, 255, 255, 0.06);
+            --text-primary: #e8e8f0;
+            --text-secondary: #8888a0;
+            --border: rgba(255, 255, 255, 0.06);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .bg-glow {
+            position: fixed;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle at 30% 40%, rgba(74, 163, 223, 0.04) 0%, transparent 50%),
+                        radial-gradient(circle at 70% 60%, rgba(232, 67, 147, 0.04) 0%, transparent 50%);
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 760px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* Nav */
+        nav {
+            padding: 24px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        nav a {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+            color: var(--text-primary);
+        }
+
+        nav img {
+            width: 28px;
+            height: 28px;
+        }
+
+        nav .wordmark {
+            font-size: 15px;
+            font-weight: 600;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 20px;
+        }
+
+        .nav-links a {
+            font-size: 14px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover { color: var(--text-primary); }
+
+        /* Header */
+        .page-header {
+            padding: 60px 0 20px;
+        }
+
+        .page-header h1 {
+            font-size: clamp(28px, 5vw, 40px);
+            font-weight: 700;
+            line-height: 1.2;
+            letter-spacing: -0.02em;
+            margin-bottom: 16px;
+        }
+
+        .page-header .lead {
+            font-size: 17px;
+            color: var(--text-secondary);
+            line-height: 1.7;
+            max-width: 600px;
+        }
+
+        /* Sections */
+        .concept {
+            padding: 48px 0;
+            border-top: 1px solid var(--border);
+        }
+
+        .concept:first-of-type {
+            border-top: none;
+        }
+
+        .concept h2 {
+            font-size: 22px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .concept h2 .icon {
+            width: 32px;
+            height: 32px;
+            line-height: 32px;
+            text-align: center;
+            border-radius: 8px;
+            background: rgba(139, 92, 246, 0.1);
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+
+        .concept p {
+            font-size: 15px;
+            color: var(--text-secondary);
+            line-height: 1.8;
+            margin-bottom: 16px;
+        }
+
+        .concept p:last-child {
+            margin-bottom: 0;
+        }
+
+        .concept strong {
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        /* Diagrams */
+        .diagram {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            margin: 20px 0;
+            font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+            font-size: 13px;
+            line-height: 1.8;
+            overflow-x: auto;
+            white-space: pre;
+            color: var(--text-secondary);
+        }
+
+        .diagram .node { color: var(--blue); }
+        .diagram .trigger { color: var(--purple); }
+        .diagram .edge { color: var(--text-secondary); }
+        .diagram .label { color: var(--pink); }
+        .diagram .score { color: var(--green); }
+        .diagram .space { color: var(--orange); }
+        .diagram .comment { color: #5c6370; }
+
+        /* Callout */
+        .callout {
+            background: rgba(139, 92, 246, 0.06);
+            border: 1px solid rgba(139, 92, 246, 0.15);
+            border-radius: 10px;
+            padding: 16px 20px;
+            margin: 20px 0;
+            font-size: 14px;
+            line-height: 1.7;
+            color: var(--text-secondary);
+        }
+
+        .callout strong {
+            color: var(--purple);
+        }
+
+        /* Comparison table */
+        .compare-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 14px;
+        }
+
+        .compare-table th {
+            text-align: left;
+            padding: 10px 16px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .compare-table td {
+            padding: 10px 16px;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .compare-table td:first-child {
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        /* Flow list */
+        .flow-list {
+            list-style: none;
+            counter-reset: flow;
+            margin: 20px 0;
+        }
+
+        .flow-list li {
+            counter-increment: flow;
+            padding: 12px 0 12px 44px;
+            position: relative;
+            font-size: 15px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        .flow-list li::before {
+            content: counter(flow);
+            position: absolute;
+            left: 0;
+            width: 28px;
+            height: 28px;
+            line-height: 28px;
+            text-align: center;
+            border-radius: 50%;
+            background: rgba(139, 92, 246, 0.12);
+            color: var(--purple);
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .flow-list li + li {
+            border-top: 1px solid var(--border);
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 40px 0 24px;
+            border-top: 1px solid var(--border);
+            margin-top: 40px;
+        }
+
+        footer a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 13px;
+        }
+
+        footer a:hover { color: var(--text-primary); }
+
+        @media (max-width: 640px) {
+            .page-header { padding: 40px 0 16px; }
+            .concept { padding: 32px 0; }
+            .diagram { font-size: 11px; padding: 16px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-glow"></div>
+
+    <div class="container">
+        <nav>
+            <a href="/">
+                <img src="assets/logo-dark.png" alt="NeuralGraph">
+                <span class="wordmark">NeuralGraph</span>
+            </a>
+            <div class="nav-links">
+                <a href="/concepts">Concepts</a>
+                <a href="/sandbox" style="opacity: 0.5; pointer-events: none;">Sandbox (Coming Soon)</a>
+            </div>
+        </nav>
+
+        <header class="page-header">
+            <h1>How NeuralGraph Works</h1>
+            <p class="lead">
+                NeuralGraph is a context engine that stores knowledge as interconnected graphs and retrieves the right context at the right time. Not a chatbot framework. Not a RAG pipeline. A structured memory layer that any AI application can plug into.
+            </p>
+        </header>
+
+        <!-- Graph Memory -->
+        <section class="concept">
+            <h2><span class="icon">&#x25C8;</span> Graph Memory</h2>
+            <p>
+                Most AI memory systems store flat chunks of text and retrieve them with vector similarity. That works for simple recall, but it loses structure. <strong>NeuralGraph stores knowledge as a graph</strong> — nodes represent discrete pieces of knowledge, edges represent relationships between them.
+            </p>
+            <p>
+                A node can be anything: a fact, a person, a preference, a concept, an event. Each node has a type, importance score, and structured data. Edges carry meaning — <strong>RELATED_TO</strong>, <strong>CONTRADICTS</strong>, <strong>SUBTOPIC_OF</strong>, <strong>SUPERSEDES</strong> — so the system understands not just what it knows, but how things connect.
+            </p>
+
+            <div class="diagram"><span class="comment">   A conversation about a user's work life might produce:</span>
+
+   <span class="node">[David]</span> <span class="edge">--WORKS_AT--></span> <span class="node">[Acme Corp]</span>
+      <span class="edge">|</span>                          <span class="edge">|</span>
+      <span class="edge">MANAGES</span>                   <span class="edge">SUBTOPIC_OF</span>
+      <span class="edge">|</span>                          <span class="edge">|</span>
+   <span class="node">[Team Alpha]</span>             <span class="node">[Tech Industry]</span>
+      <span class="edge">|</span>
+      <span class="edge">RELATED_TO</span>
+      <span class="edge">|</span>
+   <span class="node">[Q3 Launch]</span> <span class="edge">--CAUSES--></span> <span class="node">[Stress]</span></div>
+
+            <p>
+                When new information arrives, the graph updates. If David changes jobs, the old <strong>WORKS_AT</strong> edge gets superseded — not deleted. The graph maintains history while keeping current state clear.
+            </p>
+        </section>
+
+        <!-- Triggers -->
+        <section class="concept">
+            <h2><span class="icon">&#x26A1;</span> Triggers</h2>
+            <p>
+                This is what makes NeuralGraph different from every other graph memory system. <strong>Triggers are semantic hooks</strong> — short phrases extracted alongside each node that describe when that knowledge should surface. They're not keywords. They're intent signals.
+            </p>
+            <p>
+                When a user says "I'm stressed about the launch," the system doesn't just vector-search for similar text. It scans for triggers. The node <strong>[Q3 Launch]</strong> might have triggers like <em>"launch timeline"</em>, <em>"project deadline"</em>, <em>"work pressure"</em>. The node <strong>[Stress]</strong> might have <em>"feeling overwhelmed"</em>, <em>"anxiety"</em>. Both fire. Both contribute context.
+            </p>
+
+            <div class="diagram"><span class="comment">   Each node has triggers that control when it surfaces:</span>
+
+   <span class="node">[Q3 Launch]</span>
+      <span class="trigger">trigger</span>: <span class="label">"launch timeline"</span>    <span class="score">strength: 1.4</span>
+      <span class="trigger">trigger</span>: <span class="label">"project deadline"</span>   <span class="score">strength: 1.1</span>
+      <span class="trigger">trigger</span>: <span class="label">"work pressure"</span>      <span class="score">strength: 0.9</span>
+      <span class="trigger">trigger</span>: <span class="label">"release date"</span>       <span class="score">strength: 0.7</span>
+
+   <span class="comment">   Triggers strengthen with positive feedback (+0.1, cap 2.0)</span>
+   <span class="comment">   and weaken when irrelevant (-0.05, floor 0.1)</span></div>
+
+            <p>
+                Trigger strength is adaptive. When the AI uses a piece of context and it's relevant, the triggers that surfaced it get stronger. When context is irrelevant, those triggers weaken. <strong>The graph learns what matters over time</strong> — no retraining, no manual tuning.
+            </p>
+
+        </section>
+
+        <!-- Context Spaces -->
+        <section class="concept">
+            <h2><span class="icon">&#x2B21;</span> Context Spaces</h2>
+            <p>
+                Knowledge in NeuralGraph lives in <strong>spaces</strong> — isolated graphs with their own schema, ingestion rules, and retrieval config. A space can be anything: a personal memory store, a domain knowledge base, a team wiki, a product catalog.
+            </p>
+            <p>
+                Each space has a <strong>space type</strong> defined in YAML that controls everything: what node types exist, what edges are allowed, how text is extracted into nodes, how nodes are scored during retrieval, and how knowledge decays over time.
+            </p>
+
+            <div class="diagram"><span class="space">Space: "memories"</span>        <span class="space">Space: "research"</span>        <span class="space">Space: "personality"</span>
+   <span class="comment">type: personal_memory</span>     <span class="comment">type: knowledge_base</span>     <span class="comment">type: ai_personality</span>
+   <span class="edge">┌──────────────┐</span>       <span class="edge">┌──────────────┐</span>       <span class="edge">┌──────────────┐</span>
+   <span class="edge">│</span> <span class="node">[Max the dog]</span> <span class="edge">│</span>       <span class="edge">│</span> <span class="node">[Quantum ML]</span>  <span class="edge">│</span>       <span class="edge">│</span> <span class="node">[Tone: warm]</span>  <span class="edge">│</span>
+   <span class="edge">│</span> <span class="node">[Thai food]</span>   <span class="edge">│</span>       <span class="edge">│</span> <span class="node">[RLHF paper]</span>  <span class="edge">│</span>       <span class="edge">│</span> <span class="node">[Curious]</span>     <span class="edge">│</span>
+   <span class="edge">│</span> <span class="node">[Q3 Launch]</span>   <span class="edge">│</span>       <span class="edge">│</span> <span class="node">[Attention]</span>   <span class="edge">│</span>       <span class="edge">│</span> <span class="node">[Concise]</span>     <span class="edge">│</span>
+   <span class="edge">└──────────────┘</span>       <span class="edge">└──────────────┘</span>       <span class="edge">└──────────────┘</span></div>
+
+            <p>
+                Spaces are <strong>isolated by default, composable at query time</strong>. A single hydration request can search across any combination of spaces — merging a scientist's research graph with their personal memory graph and an AI personality graph in one query. The results are scored and ranked together.
+            </p>
+        </section>
+
+        <!-- Multi-Space Hydration -->
+        <section class="concept">
+            <h2><span class="icon">&#x1F500;</span> Multi-Space Hydration</h2>
+            <p>
+                This is where it gets powerful. At query time, you pass a list of <strong>space_ids</strong> and NeuralGraph searches across all of them simultaneously. Each space contributes nodes, and they're scored together in a single ranked list.
+            </p>
+            <p>
+                Imagine a research assistant that knows both your personal context and a domain knowledge base. When you ask "What papers should I read next?", NeuralGraph can pull from your <strong>personality space</strong> (you prefer practical over theoretical), your <strong>memory space</strong> (you mentioned interest in reinforcement learning last week), and a <strong>research space</strong> (recent RLHF papers). All composed dynamically, no upfront merging needed.
+            </p>
+
+            <div class="diagram"><span class="comment">   Hydration request:</span>
+   <span class="label">user_id</span>:   <span class="node">"david"</span>
+   <span class="label">space_ids</span>: <span class="space">["memories", "research", "personality"]</span>
+   <span class="label">messages</span>:  <span class="node">"What papers should I read next?"</span>
+
+   <span class="comment">   Result: nodes from all three spaces, ranked together</span>
+
+   <span class="node">[RLHF Survey 2025]</span>      <span class="space">research</span>      <span class="score">score: 0.91</span>
+   <span class="node">[Interested in RL]</span>       <span class="space">memories</span>      <span class="score">score: 0.87</span>
+   <span class="node">[Prefers practical]</span>      <span class="space">personality</span>   <span class="score">score: 0.72</span>
+   <span class="node">[Attention paper]</span>        <span class="space">research</span>      <span class="score">score: 0.65</span>
+   <span class="node">[PhD in CS]</span>              <span class="space">memories</span>      <span class="score">score: 0.41</span></div>
+
+            <p>
+                The system prompt is built from the top-scoring nodes across all spaces. The AI gets exactly the context it needs — personal knowledge, domain knowledge, and behavioral guidelines — all in one call.
+            </p>
+        </section>
+
+        <!-- How Retrieval Works -->
+        <section class="concept">
+            <h2><span class="icon">&#x1F50D;</span> Retrieval Channels</h2>
+            <p>
+                NeuralGraph doesn't rely on a single retrieval method. It runs <strong>three concurrent channels</strong> and merges the results:
+            </p>
+
+            <table class="compare-table">
+                <thead>
+                    <tr>
+                        <th>Channel</th>
+                        <th>How It Works</th>
+                        <th>What It Catches</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Trigger Matching</td>
+                        <td>Scans input for trigger phrases, weighted by strength</td>
+                        <td>Contextually relevant nodes that should fire based on conversational patterns</td>
+                    </tr>
+                    <tr>
+                        <td>Vector Search</td>
+                        <td>Embeds the input and finds semantically similar nodes</td>
+                        <td>Nodes with similar meaning that triggers might miss</td>
+                    </tr>
+                    <tr>
+                        <td>Graph Expansion</td>
+                        <td>Traverses edges from matched nodes to find connected knowledge</td>
+                        <td>Related context that wouldn't match on text alone</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <p>
+                All three channels run without an LLM call. Retrieval is pure computation — trigger matching, embedding lookup, graph traversal. This means <strong>context retrieval takes milliseconds, not seconds</strong>. The only LLM call is the final response generation, which uses the context NeuralGraph assembled.
+            </p>
+
+            <div class="callout">
+                <strong>Scoring formula:</strong> Each node's final score is a composite of trigger strength, match count, importance, recency, and coverage. Recently mentioned topics get a short-term boost (configurable, default 4 hours). The scoring weights are fully configurable per space type.
+            </div>
+        </section>
+
+        <!-- Lifecycle -->
+        <section class="concept">
+            <h2><span class="icon">&#x1F504;</span> Memory Lifecycle</h2>
+            <p>
+                Knowledge isn't static. NeuralGraph manages the full lifecycle of every node:
+            </p>
+
+            <ol class="flow-list">
+                <li><strong>Extraction</strong> — conversations and content are ingested, an LLM extracts structured nodes, triggers, and edges into the graph</li>
+                <li><strong>Reinforcement</strong> — when a node surfaces and is useful, its triggers strengthen. Importance increases with repeated mention</li>
+                <li><strong>Decay</strong> — nodes that haven't been accessed or reinforced gradually lose importance. Configurable decay curves per space type</li>
+                <li><strong>Consolidation</strong> — related nodes can be merged or summarized over time, keeping the graph dense and relevant</li>
+                <li><strong>Deletion</strong> — nodes can be soft-deleted, removing them from retrieval while preserving graph structure for analytics</li>
+            </ol>
+
+            <p>
+                The result is a graph that <strong>naturally reflects what matters now</strong>. Recent, frequently-referenced knowledge rises to the top. Old, unused knowledge fades. The system maintains itself without manual curation.
+            </p>
+        </section>
+
+        <!-- Feedback Loop -->
+        <section class="concept">
+            <h2><span class="icon">&#x1F3AF;</span> Feedback Loop</h2>
+            <p>
+                After every response, the AI rates which context was relevant and which wasn't. These ratings flow back to NeuralGraph as <strong>relevance feedback</strong>, adjusting trigger strengths in real time.
+            </p>
+            <p>
+                Relevant context? Its triggers get stronger — that pattern will surface more easily next time. Irrelevant context? Its triggers weaken — the system learns not to surface it in similar situations. <strong>No retraining. No embeddings recomputed. Just edge weight adjustments in the graph.</strong>
+            </p>
+
+            <div class="diagram"><span class="comment">   User: "How's the weather?"</span>
+   <span class="comment">   Hydration surfaces: [Weather preferences], [Q3 Launch], [Stress]</span>
+
+   <span class="comment">   AI rates context:</span>
+   <span class="node">[Weather preferences]</span>  <span class="score">relevant    → triggers +0.1</span>
+   <span class="node">[Q3 Launch]</span>             <span class="label">not_relevant → triggers -0.05</span>
+   <span class="node">[Stress]</span>                <span class="label">not_relevant → triggers -0.05</span>
+
+   <span class="comment">   Next time someone asks about weather,</span>
+   <span class="comment">   [Q3 Launch] is less likely to surface.</span></div>
+        </section>
+
+        <!-- vs Other Approaches -->
+        <section class="concept">
+            <h2><span class="icon">&#x2696;</span> Compared to Other Approaches</h2>
+
+            <table class="compare-table">
+                <thead>
+                    <tr>
+                        <th>Approach</th>
+                        <th>Retrieval</th>
+                        <th>Structure</th>
+                        <th>Adapts Over Time</th>
+                        <th>Multi-Domain</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>RAG (vector only)</td>
+                        <td>Semantic similarity</td>
+                        <td>Flat text chunks</td>
+                        <td>No</td>
+                        <td>No</td>
+                    </tr>
+                    <tr>
+                        <td>Entity Knowledge Graphs</td>
+                        <td>Entity lookup</td>
+                        <td>Entity-relation triples</td>
+                        <td>No</td>
+                        <td>No</td>
+                    </tr>
+                    <tr>
+                        <td>Memory-augmented LLMs</td>
+                        <td>Conversation window</td>
+                        <td>Flat message history</td>
+                        <td>Recency only</td>
+                        <td>No</td>
+                    </tr>
+                    <tr>
+                        <td>Graph Memory Systems</td>
+                        <td>Graph relationships</td>
+                        <td>Memory graph with updates/extends</td>
+                        <td>Partial (rewrites)</td>
+                        <td>No</td>
+                    </tr>
+                    <tr>
+                        <td style="color: var(--purple); font-weight: 600;">NeuralGraph</td>
+                        <td>Triggers + vectors + graph traversal (concurrent)</td>
+                        <td>Typed nodes, weighted edges, configurable schemas</td>
+                        <td>Adaptive triggers, relevance feedback, importance decay</td>
+                        <td>Multi-space composition at query time</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <p>
+                Most existing approaches solve one piece of the problem. Vector RAG handles semantic recall but loses structure. Knowledge graphs preserve structure but can't adapt. Conversation windows are simple but forget everything outside the window. <strong>NeuralGraph combines structured storage, multi-channel retrieval, and continuous adaptation into a single platform</strong> — and lets applications compose across independent knowledge domains at query time.
+            </p>
+        </section>
+
+        <footer>
+            <a href="/">NeuralGraph &copy; 2026</a>
+        </footer>
+    </div>
+</body>
+</html>
