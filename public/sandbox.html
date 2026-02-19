@@ -188,22 +188,86 @@
             display: flex;
             flex: 1;
             overflow: hidden;
+            position: relative;
         }
 
         .chat-panel {
-            flex: 0 0 65%;
+            flex: 1;
             display: flex;
             flex-direction: column;
-            border-right: 1px solid var(--border);
+            min-width: 0;
         }
 
         .debug-panel {
-            flex: 0 0 35%;
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 380px;
+            height: 100%;
             display: flex;
             flex-direction: column;
             overflow-y: auto;
             padding: 16px;
             font-size: 13px;
+            background: var(--bg-dark);
+            border-left: 1px solid var(--border);
+            transform: translateX(100%);
+            transition: transform 0.25s ease;
+            z-index: 20;
+        }
+
+        .debug-panel.open {
+            transform: translateX(0);
+        }
+
+        .debug-backdrop {
+            display: none;
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 10;
+            -webkit-backdrop-filter: blur(2px);
+            backdrop-filter: blur(2px);
+        }
+
+        .debug-backdrop.visible {
+            display: block;
+        }
+
+        .debug-close {
+            align-self: flex-end;
+            padding: 4px 12px;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-secondary);
+            font-size: 12px;
+            cursor: pointer;
+            margin-bottom: 12px;
+            flex-shrink: 0;
+        }
+
+        .debug-close:hover {
+            color: var(--text-primary);
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        /* Toggle button in nav */
+        .debug-toggle {
+            padding: 6px 10px;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-secondary);
+            font-size: 16px;
+            cursor: pointer;
+            line-height: 1;
+            transition: color 0.2s, border-color 0.2s;
+        }
+
+        .debug-toggle:hover {
+            color: var(--text-primary);
+            border-color: rgba(255, 255, 255, 0.15);
         }
 
         /* ── Messages ── */
@@ -419,9 +483,9 @@
 
         /* ── Responsive ── */
         @media (max-width: 768px) {
-            .main-panels { flex-direction: column; }
-            .chat-panel { flex: 1; border-right: none; border-bottom: 1px solid var(--border); }
-            .debug-panel { flex: 0 0 200px; }
+            .top-nav { padding: 10px 12px; gap: 8px; }
+            .top-nav .title { display: none; }
+            .debug-panel { width: 100%; }
         }
     </style>
 </head>
@@ -448,12 +512,11 @@
         <a href="/"><img src="assets/logo-dark.png" alt="NeuralGraph"></a>
         <span class="title">Sandbox</span>
         <select id="spaceSelect" class="space-select"></select>
+        <button id="newSpaceBtn" class="sign-out-btn">+ New Space</button>
         <select id="providerSelect" class="space-select">
-            <option value="anthropic">Claude</option>
-            <option value="openai">GPT-4o</option>
-            <option value="gemini">Gemini</option>
-            <option value="azure_openai">Azure OpenAI</option>
+            <option value="azure_openai">GPT-4o</option>
         </select>
+        <button id="debugToggle" class="debug-toggle" title="Debug panel">&#9776;</button>
         <button id="signOutBtn" class="sign-out-btn">Sign Out</button>
     </div>
 
@@ -471,7 +534,9 @@
             </div>
         </div>
 
-        <div class="debug-panel">
+        <div id="debugBackdrop" class="debug-backdrop"></div>
+        <div id="debugPanel" class="debug-panel">
+            <button id="debugClose" class="debug-close">Close</button>
             <details class="debug-section" open>
                 <summary>Scored Nodes</summary>
                 <div id="debugNodes" class="debug-content">
@@ -501,7 +566,7 @@
 <script>
     // Firebase config — replace with your project's config
     firebase.initializeApp({
-        apiKey: "YOUR_FIREBASE_API_KEY",
+        apiKey: "AIzaSyBBRJu6ajk3ePiT-zQQn0aH3cuiWCL3Tqw",
         authDomain: "neuralgraph-app.firebaseapp.com",
         projectId: "neuralgraph-app",
     });
@@ -513,6 +578,9 @@
     let userId = null;
     let spaceIds = [];
     let conversationHistory = [];
+    let pendingIngestMessages = [];
+    let userMessageCount = 0;
+    const INGEST_EVERY_N = 5;
 
     // ── DOM ──
     const loginScreen = document.getElementById("loginScreen");
@@ -521,15 +589,35 @@
     const loginBtn = document.getElementById("loginBtn");
     const loginError = document.getElementById("loginError");
     const spaceSelect = document.getElementById("spaceSelect");
+    const newSpaceBtn = document.getElementById("newSpaceBtn");
     const providerSelect = document.getElementById("providerSelect");
     const signOutBtn = document.getElementById("signOutBtn");
     const messagesEl = document.getElementById("messages");
     const typingEl = document.getElementById("typing");
     const chatInput = document.getElementById("chatInput");
     const sendBtn = document.getElementById("sendBtn");
+    const debugPanel = document.getElementById("debugPanel");
+    const debugBackdrop = document.getElementById("debugBackdrop");
+    const debugToggle = document.getElementById("debugToggle");
+    const debugClose = document.getElementById("debugClose");
     const debugNodes = document.getElementById("debugNodes");
     const debugPrompt = document.getElementById("debugPrompt");
     const debugJob = document.getElementById("debugJob");
+
+    // ── Debug panel toggle ──
+    function openDebug() {
+        debugPanel.classList.add("open");
+        debugBackdrop.classList.add("visible");
+    }
+    function closeDebug() {
+        debugPanel.classList.remove("open");
+        debugBackdrop.classList.remove("visible");
+    }
+    debugToggle.addEventListener("click", () => {
+        debugPanel.classList.contains("open") ? closeDebug() : openDebug();
+    });
+    debugClose.addEventListener("click", closeDebug);
+    debugBackdrop.addEventListener("click", closeDebug);
 
     // ── Auth ──
     loginForm.addEventListener("submit", async (e) => {
@@ -549,6 +637,45 @@
 
     signOutBtn.addEventListener("click", () => {
         auth.signOut();
+    });
+
+    // Reset conversation when switching spaces
+    spaceSelect.addEventListener("change", () => {
+        conversationHistory = [];
+        pendingIngestMessages = [];
+        userMessageCount = 0;
+        messagesEl.innerHTML = '<div class="msg system-msg">Switched space. Send a message to start a new conversation.</div>';
+        debugNodes.innerHTML = '<p class="debug-empty">No hydration data yet.</p>';
+        debugPrompt.innerHTML = '<p class="debug-empty">No system prompt yet.</p>';
+        debugJob.innerHTML = '<p class="debug-empty">No jobs yet.</p>';
+    });
+
+    // Create a new space
+    newSpaceBtn.addEventListener("click", async () => {
+        const name = prompt("Space name:");
+        if (!name) return;
+
+        newSpaceBtn.disabled = true;
+        try {
+            const space = await apiCall("/create-space", {
+                method: "POST",
+                body: JSON.stringify({ name }),
+            });
+
+            // Refresh token to pick up updated claims
+            idToken = await auth.currentUser.getIdToken(true);
+
+            const opt = document.createElement("option");
+            opt.value = space.id;
+            opt.textContent = space.name || space.id;
+            spaceSelect.appendChild(opt);
+            spaceSelect.value = space.id;
+            spaceSelect.dispatchEvent(new Event("change"));
+        } catch (err) {
+            alert("Failed to create space: " + err.message);
+        } finally {
+            newSpaceBtn.disabled = false;
+        }
     });
 
     auth.onAuthStateChanged(async (user) => {
@@ -579,6 +706,8 @@
 
             // Reset conversation
             conversationHistory = [];
+            pendingIngestMessages = [];
+            userMessageCount = 0;
 
             loginScreen.style.display = "none";
             chatApp.style.display = "flex";
@@ -588,6 +717,8 @@
             userId = null;
             spaceIds = [];
             conversationHistory = [];
+            pendingIngestMessages = [];
+            userMessageCount = 0;
 
             loginScreen.style.display = "flex";
             chatApp.style.display = "none";
@@ -613,12 +744,19 @@
             },
         });
 
+        const text = await res.text();
+        let body;
+        try {
+            body = text ? JSON.parse(text) : {};
+        } catch {
+            throw new Error(`API error ${res.status}: non-JSON response`);
+        }
+
         if (!res.ok) {
-            const body = await res.json().catch(() => ({}));
             throw new Error(body.error || `API error ${res.status}`);
         }
 
-        return res.json();
+        return body;
     }
 
     // ── Chat flow ──
@@ -647,26 +785,19 @@
 
         addMessage("user", text);
         conversationHistory.push({ role: "user", content: text });
+        pendingIngestMessages.push({ role: "user", content: text });
+        userMessageCount++;
         showTyping(true);
 
         try {
-            // 1. Ingest
-            updateJobStatus("running", "Ingesting...");
-            const ingestResult = await apiCall(`/v1/spaces/${spaceId}/ingest`, {
-                method: "POST",
-                body: JSON.stringify({
-                    input_type: "conversation",
-                    messages: [{ role: "user", content: text }],
-                    metadata: { user_id: userId },
-                }),
-            });
-
-            // 2. Poll job
-            if (ingestResult.job_id) {
-                await pollJob(ingestResult.job_id);
+            // 1. Batch ingest every N user messages (fire-and-forget)
+            if (userMessageCount % INGEST_EVERY_N === 0 && pendingIngestMessages.length > 0) {
+                const msgs = pendingIngestMessages;
+                pendingIngestMessages = [];
+                ingestInBackground(spaceId, msgs);
             }
 
-            // 3. Hydrate
+            // 2. Hydrate (every turn)
             updateJobStatus("running", "Hydrating...");
             const hydrateResult = await apiCall("/v1/hydrate", {
                 method: "POST",
@@ -681,7 +812,7 @@
             updateDebugNodes(hydrateResult.nodes || []);
             updateDebugPrompt(hydrateResult.system_prompt || "");
 
-            // 4. LLM call
+            // 3. LLM call
             updateJobStatus("running", "Generating response...");
             const chatResult = await apiCall("/chat", {
                 method: "POST",
@@ -694,6 +825,7 @@
 
             const reply = chatResult.content || "";
             conversationHistory.push({ role: "assistant", content: reply });
+            pendingIngestMessages.push({ role: "assistant", content: reply });
             addMessage("assistant", reply);
 
             updateJobStatus("completed", "Done");
@@ -708,21 +840,45 @@
         }
     }
 
-    async function pollJob(jobId) {
+    async function ingestInBackground(spaceId, messages) {
+        try {
+            updateJobStatus("running", "Ingesting...");
+            const result = await apiCall(`/v1/spaces/${spaceId}/ingest`, {
+                method: "POST",
+                body: JSON.stringify({
+                    input_type: "conversation",
+                    messages,
+                    metadata: { user_id: userId },
+                }),
+            });
+            if (result.job_id) {
+                pollJobInBackground(result.job_id);
+            }
+        } catch (err) {
+            updateJobStatus("error", `Ingest: ${err.message}`);
+        }
+    }
+
+    async function pollJobInBackground(jobId) {
         const maxAttempts = 60;
         for (let i = 0; i < maxAttempts; i++) {
-            const job = await apiCall(`/v1/jobs/${jobId}`);
-            updateJobStatus(
-                job.status === "completed" ? "completed" : "running",
-                `Job ${jobId}: ${job.status}`
-            );
-
-            if (job.status === "completed") return;
-            if (job.status === "failed") throw new Error(`Job failed: ${job.error || "unknown"}`);
-
+            try {
+                const job = await apiCall(`/v1/jobs/${jobId}`);
+                if (job.status === "completed") {
+                    updateJobStatus("completed", `Ingest done`);
+                    return;
+                }
+                if (job.status === "failed") {
+                    updateJobStatus("error", `Ingest failed: ${job.error || "unknown"}`);
+                    return;
+                }
+                updateJobStatus("running", `Ingesting...`);
+            } catch {
+                // Network blip — keep polling
+            }
             await new Promise((r) => setTimeout(r, 2000));
         }
-        throw new Error("Job timed out");
+        updateJobStatus("error", "Ingest timed out");
     }
 
     // ── UI helpers ──
